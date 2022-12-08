@@ -1,8 +1,10 @@
+from functools import partial
 from os import path
-from MACmol import MACMolecule
+import qcffpi_utils as qutils
 
 class Trajectory:
-    '''Class for easily obtaining and processing the QCFFPI data of the frames from a LAMMPS MD trajectory of MAC.
+    '''
+    Class for easily obtaining and processing the QCFFPI data of the frames from a LAMMPS MD trajectory of MAC.
 
     To initialise it needs:
     
@@ -34,8 +36,52 @@ class Trajectory:
         if step < 1:
             raise ValueError('Step size must be a positive integer')
         self.step = step
-    
-    def fetch_QCFFPI_data(self,frames=None):
-        pass
-        
+        self.frame_inds = range(nstart,nend,step)
+        self.Natoms = -1 # this will get updated once the energies or the MOs are obtained
 
+
+    def fetch_energies(self,frames=None):
+        '''
+        This function loads the MO energies of the selcted frames into a *generator*.
+        Parameters
+        ----------
+        frames: iterable containing `ints`
+            List of frame indices for which we wish to extract QCFFPI data.
+            The inds `self.frame_inds` are used by default.
+            
+        Returns
+        -------
+        energies: `generator` of `np.ndarray`s
+            Each NumPy array contains the MO energies of a frame in `frames`
+        '''
+        
+        if frames == None:
+            frames = self.frame_inds
+
+        efiles = [path.join(self.QCFFPIdir,f'frame-{f}','orb_energy.dat') for f in frames]
+
+        return map(qutils.read_energies, efiles)
+    
+    def fetch_rMOs(self, frames=None):
+        '''
+        This function loads the MO energies of the selcted frames into a *generator*.
+        Parameters
+        ----------
+        frames: iterable containing `ints`
+            List of frame indices for which we wish to extract QCFFPI data.
+            The inds `self.frame_inds` are used by default.
+            
+        Returns
+        -------
+        energies: `generator` of `tuple`s of `np.ndarrays`s
+            Each tuple contains: 
+                * R: a (N,3) NumPy array containg the positions of the atoms in a frame.
+                * M: a (N,N) NumPy array whose columns contain the MOs of a frame, represented in
+                     AO space.
+        '''
+        
+        MOfiles = [path.join(self.QCFFPIdir, f'frame-{f}', 'MO_coefs.dat') for f in frames]
+
+        N = qutils.get_Natoms(MOfiles[0])
+
+        return map(partial(qutils.read_MO_file, Natoms=N), MOfiles)
