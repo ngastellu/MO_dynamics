@@ -2,8 +2,6 @@ import numpy as np
 import scipy
 from scipy import sparse
 import scipy.sparse.linalg as sLA
-import matplotlib.pyplot as plt
-from matplotlib import rcParams
 from find_edge_carbons import concave_hull
 
 # Set of functions that are useful to process QCFFPI data and extract 
@@ -349,6 +347,14 @@ def interference_matrix_MO(e,M,energy_lvls,gamL,gamR):
     B = gamR @ Gdagger
 
     return A * (B.T)
+
+def MO_com(pos, MO_matrix, n=None):
+
+    if n:
+        psi = np.abs(MO_matrix[:,n]**2)
+    else:
+        psi = np.abs(MO_matrix**2)
+    return psi @ pos
 
 
 def MO_rgyr(pos,MO_matrix,n,center_of_mass=None):

@@ -1,6 +1,7 @@
 from functools import partial
 from os import path
 import qcffpi_utils as qutils
+from qchemMAC import AO_hamiltonian, AO_gammas, all_rgyrs
 
 class Trajectory:
     '''
@@ -22,7 +23,7 @@ class Trajectory:
     step: `int`
         Spacing between indices of consecutive sampled frames.
     '''
-    def __init__(self, QCFFPI_dir, nstart, nend, step=1):
+    def __init__(self, QCFFPI_dir, nstart, nend, step=1, MD_timestep):
         if path.isdir(QCFFPI_dir):
             self.QCFFPIdir = QCFFPI_dir
         else:
@@ -37,6 +38,7 @@ class Trajectory:
             raise ValueError('Step size must be a positive integer')
         self.step = step
         self.frame_inds = range(nstart,nend,step)
+        self.dt = MD_timestep
         self.Natoms = -1 # this will get updated once the energies or the MOs are obtained
 
 
@@ -52,7 +54,7 @@ class Trajectory:
         Returns
         -------
         energies: `generator` of `np.ndarray`s
-            Each NumPy array contains the MO energies of a frame in `frames`
+            Each NumPy array contains the MO energies of a frame in `frames`.
         '''
         
         if frames == None:
@@ -80,8 +82,15 @@ class Trajectory:
                      AO space.
         '''
         
+        if frames == None:
+            frames = self.frame_inds
+            
         MOfiles = [path.join(self.QCFFPIdir, f'frame-{f}', 'MO_coefs.dat') for f in frames]
 
         N = qutils.get_Natoms(MOfiles[0])
 
         return map(partial(qutils.read_MO_file, Natoms=N), MOfiles)
+
+    
+    def MOtraj(mo_inds, frames=None):
+        ''''''
