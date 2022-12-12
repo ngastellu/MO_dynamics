@@ -24,9 +24,11 @@ def get_Natoms(infile):
     return Natoms
 
 
-def read_MO_file(infile,Natoms=None):
+def read_MO_file(infile, Natoms=None, MO_inds=None):
     """Reads MO coefs output file from QCFFPI and returns a list of atomic positions and a AO -> MO
-    transformation matrix with elements M_ij = <AO_i|MO_j>."""
+     transformation matrix with elements M_ij = <AO_i|MO_j>. If `MO_inds` is specified, then only
+     the columns indexed by `MO_inds` (corresponding to specific MOs) are returned, rather thanthe
+     full MO matrix."""
     
     if Natoms == None:
         Natoms = get_Natoms(infile)
@@ -56,7 +58,10 @@ def read_MO_file(infile,Natoms=None):
             MO_matrix[atom_index,counter:counter+n] = list(map(float,split_line))
             counter += n
 
-    return positions, MO_matrix
+    if MO_inds:
+        return positions, MO_matrix[:,MO_inds]
+    else:
+        return positions, MO_matrix
 
 
 def read_energies(orb_file,Natoms=-1):

@@ -26,6 +26,7 @@ def MOGammas(pos, M, gamma=0.1, n=None, rotate90=True, edge_tol=3.0):
         return np.diag(np.multidot(Mdagger, gamAO, M))[n]
     else:
         return np.diag(np.multidot(Mdagger, gamAO, M))
+    
 
 
 
@@ -102,7 +103,7 @@ class Trajectory:
 
         return map(qutils.read_energies, efiles)
     
-    def fetch_rMOs(self, frames=None, cycle_save=False):
+    def fetch_rMOs(self, frames=None, MO_inds=None, cycle_save=False):
         '''
         This function loads the MO energies of the selcted frames into a *generator*.
         Parameters
@@ -133,7 +134,7 @@ class Trajectory:
             self.rMOs = cycle(map(partial(qutils.read_MO_file, Natoms=N), MOfiles))
         
         else:
-            return map(partial(qutils.read_MO_file, Natoms=N), MOfiles)
+            return map(partial(qutils.read_MO_file, Natoms=N, MO_inds=MO_inds), MOfiles)
 
     
     def avg_energies(self, frames=None):
@@ -160,7 +161,7 @@ class Trajectory:
             rMOs = self.fetch_rMOs(frames)
             return starmap(partial(qcM.MO_com, n=MO_inds), rMOs)
         
-    def approx_gammas(self, MO_inds=None, frames=None, use_rMOs=True, rotate90=True):
+    def approx_gammas(self, frames=None, MO_inds=None, use_rMOs=True, rotate90=True):
         '''Get time-dependence of the MO-lead couplings for the selected MOs and MD frames.
         Argument `rotate90` is set to `True` by default because we assume the leads are coupled to
         the top/bottom edges of the structure. For couplings to the left/right edges '''
@@ -173,15 +174,28 @@ class Trajectory:
             rMOs = self.rMOs
             
         else:
-            rMOs = self.fetch_rMOs(frames)
+            rMOs = self.fetch_rMOs(frames,MO_inds)
         return starmap(partial(MOGammas, n=MO_inds, rotate90=rotate90), rMOs)
     
-    def avg_approx_gammas(self, MO_inds=None, frames=None, use_rMOs=True, rotate90=True):
+    def avg_approx_gammas(self, frames=None, MO_inds=None, use_rMOs=True, rotate90=True):
         if frames:
             nsteps = len(frames)
         else:
             nsteps = self.t.size 
-        gammas = self.approx(MO_inds, frames, use_rMOs, rotate90)
+        gammas = self.approx_gammas(frames, MO_inds, use_rMOs, rotate90)
         return accumulate(gammas)/nsteps
+
+    def fetch_MCOs(self, MO_inds=None, frames=None, use_rMOs=True, rotate90=True):
+    '''
+    Gets the MCOs and associated eigenvalues (sorted with increasing real part) of the selected
+    frames.
+    '''
+        if frames == None:
+            frames = self.frame_inds
+        
+        if use_rMOs:
+            rMOs = self.rMOs
+        else:
+            rMOs = self.fetch_rMOs(frames, MO_inds)
 
     
