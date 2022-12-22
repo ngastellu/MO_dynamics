@@ -65,8 +65,7 @@ def read_MO_file(infile, Natoms=None, MO_inds=None):
 
 
 def read_energies(orb_file,Natoms=-1):
-    """Reads energies from QCCFPI output file `orb_file` and returns two arrays [i,e_i] 
-    (where i labels the MOs) of the energies of occupied and virtual MOs.
+    """Reads energies from QCCFPI output file `orb_file` and returns them in an array.
     
     *** ASSUMES ENERGIES ARE SORTED *** 
 
@@ -82,15 +81,8 @@ def read_energies(orb_file,Natoms=-1):
 
     else:
         nlines_to_read = Natoms
-    all_energies = np.array([list(map(float,l.split())) for l in lines[:nlines_to_read]])
-    lumo_index = int(len(all_energies)/2)
 
-    occupied = all_energies[:lumo_index,:]
-    virtual = all_energies[lumo_index:,:]
-
-    #print(np.max(all_energies[:,1]) - np.min(all_energies[:,1]))
-
-    return occupied, virtual
+    return np.array(list(map(float,[l.split()[1] for l in lines[:nlines_to_read]])))
 
 def read_Hao(Hao_file, Natoms):
     """Reads AO Hamiltonian from Hao.dat file output by QCFFPI."""

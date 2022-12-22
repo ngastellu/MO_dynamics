@@ -1,6 +1,7 @@
 from functools import partial
 from itertools import accumulate, cycle, starmap
 from os import path
+import numpy as np
 import qcffpi_utils as qutils
 import qchemMAC as qcM
 
@@ -26,6 +27,7 @@ def MOGammas(pos, M, gamma=0.1, n=None, rotate90=True, edge_tol=3.0):
         return np.diag(np.multidot(Mdagger, gamAO, M))[n]
     else:
         return np.diag(np.multidot(Mdagger, gamAO, M))
+
     
 
 
@@ -58,7 +60,7 @@ class Trajectory:
     All other methods then use these generators to compute other quantum mechanical properties of
     the MAC structure for different frames of the MD trajectory.
     '''
-    def __init__(self, QCFFPI_dir, nstart, nend, MD_timestep, step=1):
+    def __init__(self, QCFFPI_dir, nstart, nend, MD_timestep, step=1,ddprefix='frame-'):
         if path.isdir(QCFFPI_dir):
             self.QCFFPIdir = QCFFPI_dir
         else:
@@ -74,9 +76,11 @@ class Trajectory:
         self.step = step
         self.frame_inds = range(nstart,nend,step)
         self.dt = MD_timestep
+        self.ddprefix = ddprefix #prefix of subdirectories containing QCFFPI data; suffix is just 
+                                 #the frame index
         
         self.Natoms = -1 # this will get updated once the energies or the MOs are obtained
-        self.t = np.linspace(nstart*dt, nend*dt, step*self.dt)
+        self.t = np.linspace(nstart*self.dt, nend*self.dt, step*self.dt)
 
         self.rMOs = None
 
@@ -99,7 +103,7 @@ class Trajectory:
         if frames == None:
             frames = self.frame_inds
 
-        efiles = [path.join(self.QCFFPIdir,f'frame-{f}','orb_energy.dat') for f in frames]
+        efiles = (path.join(self.QCFFPIdir,f'{self.ddprefix}{f}','orb_energy.dat') for f in frames)
 
         return map(qutils.read_energies, efiles)
     
@@ -124,9 +128,13 @@ class Trajectory:
         if frames == None:
             frames = self.frame_inds
             
-        MOfiles = [path.join(self.QCFFPIdir, f'frame-{f}', 'MO_coefs.dat') for f in frames]
+        MOfiles = (path.join(self.QCFFPIdir, f'{self.ddprefix}{f}', 'MO_coefs.dat') for f in frames)
 
-        N = qutils.get_Natoms(MOfiles[0])
+        if self.Natoms == -1:
+            N = qutils.get_Natoms(path.join(self.QCFFPIdir, f'{self.ddprefix}{frames[0]}', 'MO_coefs.dat'))
+            self.Natoms = N
+        else:
+            N = self.Natoms
 
         # If rMOs will be re-used, bind it to `self`
         # cycle() allows one to iterate over rMOs multiple times without having to rebuild it
@@ -144,18 +152,17 @@ class Trajectory:
         else:
             nsteps = self.t.size
         energies = self.fetch_energies(frames)
-        return accumulate(energies)/nsteps
+        return accumulate(energies)
         
     
     def MOtraj(self, MO_inds=None, frames=None, use_rMOs=True):
-        '''Get trajectory of the center of masses (COMs) of MOs indexed by `MO_inds`, sampled at times indexed by `frames`.'''
+        '''Get trajectory of the center of masses (COMs) of MOs indexed by `MO_inds`, sampled at 
+        times indexed by `frames`.'''
         
-        if frames == None:
-            frames = self.frame_inds
-
         if self.rMOs and use_rMOs:
-            print('[WARNING - Trajectory.MOtraj] Using self.rMOs to construct MO trajectories.\
-            Ignoring `frames` argument. ')
+            if frames:
+                print('[WARNING - Trajectory.MOtraj] Using self.rMOs to construct MO trajectories.\
+                Ignoring `frames` argument. ')
             return starmap(partial(qcM.MO_com, n=MO_inds),self.rMOs)
         else:
             rMOs = self.fetch_rMOs(frames)
@@ -169,10 +176,10 @@ class Trajectory:
             frames = self.frame_inds
 
         if self.rMOs and use_rMOs:
-            print('[WARNING - Trajectory.MOtraj] Using self.rMOs to construct MO trajectories.\
-            Ignoring `frames` argument. ')
-            rMOs = self.rMOs
-            
+            if frames:
+                print('[WARNING - Trajectory.approx_gammas] Using self.rMOs to compute approximate\
+                couplings.\n Ignoring `frames` argument.')
+            rMOs = self.rMOs    
         else:
             rMOs = self.fetch_rMOs(frames,MO_inds)
         return starmap(partial(MOGammas, n=MO_inds, rotate90=rotate90), rMOs)
@@ -186,10 +193,10 @@ class Trajectory:
         return accumulate(gammas)/nsteps
 
     def fetch_MCOs(self, MO_inds=None, frames=None, use_rMOs=True, rotate90=True):
-    '''
-    Gets the MCOs and associated eigenvalues (sorted with increasing real part) of the selected
-    frames.
-    '''
+        '''
+        Gets the MCOs and associated eigenvalues (sorted with increasing real part) of the selected
+        frames.
+        '''
         if frames == None:
             frames = self.frame_inds
         
